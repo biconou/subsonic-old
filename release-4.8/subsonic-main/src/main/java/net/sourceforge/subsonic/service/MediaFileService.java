@@ -80,7 +80,10 @@ public class MediaFileService {
     }
 
     /**
-     * Returns a media file instance for the given file.  If possible, a cached value is returned.
+     * Returns a media file instance for the given file.  
+     * If possible, a memory cached value is returned.
+     * Otherwise, look in database.
+     * Finally the MediaFile must be read from disk.
      *
      * @param file A file on the local file system.
      * @return A media file instance, or null if not found.
@@ -88,10 +91,16 @@ public class MediaFileService {
      */
     public MediaFile getMediaFile(File file, boolean useFastCache) {
 
+    	LOG.debug("getMediaFile "+file.getName());
+    	
+    	StringBuilder debugMessage = new StringBuilder("getting MediaFile : ");
+    	debugMessage.append(file.getName());
         // Look in fast memory cache first.
         Element element = mediaFileMemoryCache.get(file);
         MediaFile result = element == null ? null : (MediaFile) element.getObjectValue();
         if (result != null) {
+        	debugMessage.append(" found in memory cache");
+        	LOG.debug(debugMessage.toString());
             return result;
         }
 
@@ -104,6 +113,8 @@ public class MediaFileService {
         if (result != null) {
             result = checkLastModified(result, useFastCache);
             mediaFileMemoryCache.put(new Element(file, result));
+        	debugMessage.append(" found in database");
+        	LOG.debug(debugMessage.toString());
             return result;
         }
 
@@ -111,12 +122,14 @@ public class MediaFileService {
             return null;
         }
         // Not found in database, must read from disk.
+        debugMessage.append(" not found in database -> Create media file");
         result = createMediaFile(file);
 
         // Put in cache and database.
         mediaFileMemoryCache.put(new Element(file, result));
         mediaFileDao.createOrUpdateMediaFile(result);
-
+        
+        LOG.debug(debugMessage.toString());
         return result;
     }
 

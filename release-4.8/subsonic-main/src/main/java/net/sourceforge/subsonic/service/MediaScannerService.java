@@ -28,6 +28,7 @@ import java.util.TimerTask;
 
 import org.apache.commons.lang.ObjectUtils;
 
+
 import net.sourceforge.subsonic.Logger;
 import net.sourceforge.subsonic.dao.AlbumDao;
 import net.sourceforge.subsonic.dao.ArtistDao;
@@ -48,6 +49,10 @@ public class MediaScannerService {
 
     private static final int INDEX_VERSION = 15;
     private static final Logger LOG = Logger.getLogger(MediaScannerService.class);
+    
+    public static final String MEDIA_SCANNER_LOGGER_NAME = "net.sourceforge.subsonic.MEDIA_SCANNER_LOGGER";
+    private static final org.apache.log4j.Logger MEDIA_SCANNER_LOGGER = org.apache.log4j.Logger.getLogger(MEDIA_SCANNER_LOGGER_NAME);
+    
 
     private MediaLibraryStatistics statistics;
 
@@ -153,8 +158,13 @@ public class MediaScannerService {
         thread.start();
     }
 
+    /**
+     * Process the media library scanning.
+     * 
+     */
     private void doScanLibrary() {
         LOG.info("Starting to scan media library.");
+        MEDIA_SCANNER_LOGGER.info("Starting to scan media library.");
 
         try {
             Date lastScanned = new Date();
@@ -167,6 +177,9 @@ public class MediaScannerService {
             // Recurse through all files on disk.
             for (MusicFolder musicFolder : settingsService.getAllMusicFolders()) {
                 MediaFile root = mediaFileService.getMediaFile(musicFolder.getPath(), false);
+                if (MEDIA_SCANNER_LOGGER.isDebugEnabled()) {
+                	MEDIA_SCANNER_LOGGER.debug("MEDIA FOLDER : "+musicFolder.getName()+" ("+musicFolder.getPath()+") : begin scanning");
+                }
                 scanFile(root, musicFolder, lastScanned, albumCount);
             }
             LOG.info("Scanned media library with " + scanCount + " entries.");
@@ -197,6 +210,12 @@ public class MediaScannerService {
         }
     }
 
+    /**
+     * Scan a folder or a file.
+     * 
+     * @param musicFolder The logical Music Folder managed by Subsonic
+     * 
+     */
     private void scanFile(MediaFile file, MusicFolder musicFolder, Date lastScanned, Map<String, Integer> albumCount) {
         scanCount++;
         if (scanCount % 250 == 0) {
@@ -212,6 +231,10 @@ public class MediaScannerService {
         }
 
         if (file.isDirectory()) {
+        	// If file is a folder.
+        	if (MEDIA_SCANNER_LOGGER.isDebugEnabled()) {
+        		MEDIA_SCANNER_LOGGER.debug("Scanning Directory "+file.getName());
+        	}
             for (MediaFile child : mediaFileService.getChildrenOf(file, true, false, false, false)) {
                 scanFile(child, musicFolder, lastScanned, albumCount);
             }
@@ -219,6 +242,9 @@ public class MediaScannerService {
                 scanFile(child, musicFolder, lastScanned, albumCount);
             }
         } else {
+        	if (MEDIA_SCANNER_LOGGER.isDebugEnabled()) {
+        		MEDIA_SCANNER_LOGGER.debug("Register Media File "+file.getName());
+        	}
             updateAlbum(file, lastScanned, albumCount);
             updateArtist(file, lastScanned, albumCount);
             statistics.incrementSongs(1);

@@ -8,6 +8,9 @@ import org.mortbay.jetty.webapp.WebAppContext;
 public class TestServer {
  
     public static void main(String[] args) throws Exception {
+    	
+    	System.getProperties().setProperty("subsonic.home", "C:\\subsonic");
+    	
         Server server = new Server(8080);
         WebAppContext webapp = new WebAppContext();
         webapp.setContextPath("/");

@@ -17,7 +17,7 @@ import javax.swing.event.ChangeListener;
  */
 public class PlayerTest implements AudioPlayer.Listener {
 
-    private AudioPlayer player;
+    private IAudioPlayer player;
 
     public PlayerTest() throws Exception {
         player = new AudioPlayer(new FileInputStream("i:\\tmp\\foo.au"), this);
@@ -68,7 +68,7 @@ public class PlayerTest implements AudioPlayer.Listener {
         new PlayerTest();
     }
 
-    public void stateChanged(AudioPlayer player, AudioPlayer.State state) {
+    public void stateChanged(IAudioPlayer player, AudioPlayer.State state) {
         System.out.println(state);
     }
 }
