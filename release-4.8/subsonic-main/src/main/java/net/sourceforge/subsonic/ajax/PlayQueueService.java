@@ -51,7 +51,7 @@ import net.sourceforge.subsonic.util.StringUtil;
 public class PlayQueueService {
 
     private PlayerService playerService;
-    private JukeboxService jukeboxService;
+    private IJukeboxService jukeboxService;
     private TranscodingService transcodingService;
     private SettingsService settingsService;
     private MediaFileService mediaFileService;
@@ -429,7 +429,7 @@ public class PlayQueueService {
         this.mediaFileService = mediaFileService;
     }
 
-    public void setJukeboxService(JukeboxService jukeboxService) {
+    public void setJukeboxService(IJukeboxService jukeboxService) {
         this.jukeboxService = jukeboxService;
     }
 

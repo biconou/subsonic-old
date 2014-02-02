@@ -18,9 +18,6 @@
  */
 package net.sourceforge.subsonic.domain;
 
-import net.sourceforge.subsonic.util.FileUtil;
-import org.apache.commons.lang.StringUtils;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,12 +25,22 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.UnsupportedAudioFileException;
+
+import org.apache.commons.lang.StringUtils;
+
+
+import com.github.biconou.AudioPlayer.PlayList;
+
+
 /**
  * A playlist is a list of music files that are associated to a remote player.
  *
  * @author Sindre Mehus
  */
-public class PlayQueue {
+public class PlayQueue implements PlayList {
 
     private List<MediaFile> files = new ArrayList<MediaFile>();
     private boolean repeatEnabled;
@@ -46,6 +53,9 @@ public class PlayQueue {
      * Note that both the index and the playlist size can be zero.
      */
     private int index = 0;
+    
+    
+    private int indexAudioStreams = -1;
 
     /**
      * Used for undo functionality.
@@ -414,4 +424,108 @@ public class PlayQueue {
         ARTIST,
         ALBUM
     }
+
+	public AudioInputStream getCurrentAudioStream() {
+		MediaFile file = getCurrentFile();
+		
+		if (file != null) {
+			try {
+				return AudioSystem.getAudioInputStream(file.getFile());
+			} catch (UnsupportedAudioFileException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * 
+	 */
+	public AudioInputStream getFirstAudioStream() {
+		
+		indexAudioStreams = index;
+		MediaFile file = getCurrentFile();
+		
+		try {
+			return AudioSystem.getAudioInputStream(file.getFile());
+		} catch (UnsupportedAudioFileException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return null;
+	}
+
+	/**
+	 * 
+	 */
+	public AudioInputStream getNextAudioStream() {
+		
+		if (indexAudioStreams == -1) {
+			throw new IllegalStateException("Call getFirstAudioStream() first.");
+		}
+		
+		indexAudioStreams++;
+
+        // Reached the end?
+        if (indexAudioStreams >= size()) {
+            return null;
+        } else {
+    		try {
+    			return AudioSystem.getAudioInputStream(files.get(indexAudioStreams).getFile());
+    		} catch (UnsupportedAudioFileException e) {
+    			// TODO Auto-generated catch block
+    			e.printStackTrace();
+    		} catch (IOException e) {
+    			// TODO Auto-generated catch block
+    			e.printStackTrace();
+    		}        	
+        }
+		return null;
+	}
+
+	/**
+	 * 
+	 */
+	public String getFirstAudioFileName() {
+		indexAudioStreams = index;
+		MediaFile file = getCurrentFile();
+		return file.getFile().getAbsolutePath();
+	}
+
+	/**
+	 * 
+	 */
+	public String getNextAudioFileName() {
+		if (indexAudioStreams == -1) {
+			throw new IllegalStateException("Call getFirstAudioStream() first.");
+		}
+		
+		indexAudioStreams++;
+
+        // Reached the end?
+        if (indexAudioStreams >= size()) {
+            return null;
+        } else {
+    		return files.get(indexAudioStreams).getFile().getAbsolutePath();
+        }
+	}
+
+	/**
+	 * 
+	 */
+	public String getCurrentAudioFileName() {
+		MediaFile file = getCurrentFile();
+
+		if (file != null) {
+			return file.getFile().getAbsolutePath();
+		}
+		return null;
+	}
 }

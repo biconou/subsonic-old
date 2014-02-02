@@ -328,6 +328,17 @@
             <scope>provided</scope>
         </dependency>  
         
+		<dependency>
+            <groupId>com.github.biconou</groupId>
+            <artifactId>AudioPlayer</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>*</artifactId>                    
+                </exclusion>
+            </exclusions>                       
+        </dependency>  
 
       <!--   <dependency>
         	<groupId>org.slf4j</groupId>

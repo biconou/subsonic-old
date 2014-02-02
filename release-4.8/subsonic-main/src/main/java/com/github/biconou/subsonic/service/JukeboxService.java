@@ -16,35 +16,36 @@
 
  Copyright 2009 (C) Sindre Mehus
  */
-package net.sourceforge.subsonic.service;
-
-import java.io.InputStream;
-
-import org.apache.commons.io.IOUtils;
+package com.github.biconou.subsonic.service;
 
 import net.sourceforge.subsonic.Logger;
 import net.sourceforge.subsonic.domain.MediaFile;
 import net.sourceforge.subsonic.domain.PlayQueue;
 import net.sourceforge.subsonic.domain.Player;
-import net.sourceforge.subsonic.domain.Transcoding;
 import net.sourceforge.subsonic.domain.TransferStatus;
 import net.sourceforge.subsonic.domain.User;
-import net.sourceforge.subsonic.domain.VideoTranscodingSettings;
+import net.sourceforge.subsonic.service.AudioScrobblerService;
+import net.sourceforge.subsonic.service.IJukeboxService;
+import net.sourceforge.subsonic.service.MediaFileService;
+import net.sourceforge.subsonic.service.SecurityService;
+import net.sourceforge.subsonic.service.SettingsService;
+import net.sourceforge.subsonic.service.StatusService;
+import net.sourceforge.subsonic.service.TranscodingService;
 import net.sourceforge.subsonic.service.jukebox.AudioPlayer;
 import net.sourceforge.subsonic.util.FileUtil;
 
-import static net.sourceforge.subsonic.service.jukebox.AudioPlayer.State.EOM;
+import com.github.biconou.AudioPlayer.PlayerListener;
 
 /**
  * Plays music on the local audio device.
  *
- * @author Sindre Mehus
+ * @author Sindre Mehus / Rémi Cocula
  */
-public class JukeboxService implements AudioPlayer.Listener, IJukeboxService {
+public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJukeboxService {
 
     private static final Logger LOG = Logger.getLogger(JukeboxService.class);
 
-    private AudioPlayer audioPlayer;
+    private com.github.biconou.AudioPlayer.Player audioPlayer;
     private TranscodingService transcodingService;
     private AudioScrobblerService audioScrobblerService;
     private StatusService statusService;
@@ -58,9 +59,12 @@ public class JukeboxService implements AudioPlayer.Listener, IJukeboxService {
     private int offset;
     private MediaFileService mediaFileService;
 
-    /* (non-Javadoc)
-	 * @see net.sourceforge.subsonic.service.IJukeboxService#updateJukebox(net.sourceforge.subsonic.domain.Player, int)
-	 */
+    /**
+     * Updates the jukebox by starting or pausing playback on the local audio device.
+     *
+     * @param player The player in question.
+     * @param offset Start playing after this many seconds into the track.
+     */
     public synchronized void updateJukebox(Player player, int offset) throws Exception {
         User user = securityService.getUserByName(player.getUsername());
         if (!user.isJukeboxRole()) {
@@ -77,81 +81,113 @@ public class JukeboxService implements AudioPlayer.Listener, IJukeboxService {
             play(result, offset);
         } else {
             if (audioPlayer != null) {
-                audioPlayer.pause();
+            	if (currentPlayingFile != null) {
+            		audioPlayer.pause();
+            	}
             }
         }
     }
 
+    /**
+     * 
+     * @param file
+     * @param offset
+     */
     private synchronized void play(MediaFile file, int offset) {
-        InputStream in = null;
+        //InputStream in = null;
         try {
 
             // Resume if possible.
             boolean sameFile = file != null && file.equals(currentPlayingFile);
-            boolean paused = audioPlayer != null && audioPlayer.getState() == AudioPlayer.State.PAUSED;
+            boolean paused = audioPlayer != null && audioPlayer.getState() == com.github.biconou.AudioPlayer.Player.State.PAUSED;
             if (sameFile && paused && offset == 0) {
                 audioPlayer.play();
             } else {
                 this.offset = offset;
                 if (audioPlayer != null) {
-                    audioPlayer.close();
-                    if (currentPlayingFile != null) {
-                        onSongEnd(currentPlayingFile);
-                    }
+                    audioPlayer.stop();
+//                    if (currentPlayingFile != null) {
+//                        onSongEnd(currentPlayingFile);
+//                    }
                 }
 
                 if (file != null) {
-                    int duration = file.getDurationSeconds() == null ? 0 : file.getDurationSeconds() - offset;
-                    TranscodingService.Parameters parameters = new TranscodingService.Parameters(file, new VideoTranscodingSettings(0, 0, offset, duration, false));
-                    String command = settingsService.getJukeboxCommand();
-                    parameters.setTranscoding(new Transcoding(null, null, null, null, command, null, null, false));
-                    in = transcodingService.getTranscodedInputStream(parameters);
-                    audioPlayer = new AudioPlayer(in, this);
-                    audioPlayer.setGain(gain);
-                    audioPlayer.play();
+                    //int duration = file.getDurationSeconds() == null ? 0 : file.getDurationSeconds() - offset;
+                    //TranscodingService.Parameters parameters = new TranscodingService.Parameters(file, new VideoTranscodingSettings(0, 0, offset, duration, false));
+                    //String command = settingsService.getJukeboxCommand();
+                    //parameters.setTranscoding(new Transcoding(null, null, null, null, command, null, null, false));
+                    //in = transcodingService.getTranscodedInputStream(parameters);
+                	
+                	// Temporaire recréation systématique d'un player.
+                	if (audioPlayer != null) {
+                		audioPlayer.close();
+                		audioPlayer = null;
+                	}
+                	
+                	if (audioPlayer == null) {
+                		audioPlayer = new com.github.biconou.AudioPlayer.MPlayerPlayer();
+                    	audioPlayer.registerListener(this);
+                	}
+                	audioPlayer.setPlayList(this.player.getPlayQueue());
+                	audioPlayer.setGain(gain);
+                	audioPlayer.play();
+
                     onSongStart(file);
+                    currentPlayingFile = file;
                 }
             }
-
-            currentPlayingFile = file;
-
         } catch (Exception x) {
             LOG.error("Error in jukebox: " + x, x);
-            IOUtils.closeQuietly(in);
+            //IOUtils.closeQuietly(in);
         }
     }
 
-    /* (non-Javadoc)
-	 * @see net.sourceforge.subsonic.service.IJukeboxService#stateChanged(net.sourceforge.subsonic.service.jukebox.AudioPlayer, net.sourceforge.subsonic.service.jukebox.AudioPlayer.State)
-	 */
     public synchronized void stateChanged(AudioPlayer audioPlayer, AudioPlayer.State state) {
-        if (state == EOM) {
-            player.getPlayQueue().next();
-            MediaFile result;
-            synchronized (player.getPlayQueue()) {
-                result = player.getPlayQueue().getCurrentFile();
-            }
-            play(result, 0);
-        }
+//        if (state == EOM) {
+//            player.getPlayQueue().next();
+//            MediaFile result;
+//            synchronized (player.getPlayQueue()) {
+//                result = player.getPlayQueue().getCurrentFile();
+//            }
+//            play(result, 0);
+//        }
     }
+    
+    public void nextStreamNotified() {
+    	onSongEnd(currentPlayingFile);
+    	currentPlayingFile = null;
+    	player.getPlayQueue().next();
+    	MediaFile result;
+    	synchronized (player.getPlayQueue()) {
+    		result = player.getPlayQueue().getCurrentFile();
+    	}
+    	if (result != null) {
+	    	onSongStart(result);
+	        currentPlayingFile = result;
+    	}
+    }
+    
+	public void endNotified() {
+		onSongEnd(currentPlayingFile);
+		currentPlayingFile = null;
+	}
 
-    /* (non-Javadoc)
-	 * @see net.sourceforge.subsonic.service.IJukeboxService#getGain()
-	 */
+
+
     public synchronized float getGain() {
         return gain;
     }
 
-    /* (non-Javadoc)
-	 * @see net.sourceforge.subsonic.service.IJukeboxService#getPosition()
-	 */
     public synchronized int getPosition() {
-        return audioPlayer == null ? 0 : offset + audioPlayer.getPosition();
+        //return audioPlayer == null ? 0 : offset + audioPlayer.getPosition();
+    	return 0;
     }
 
-    /* (non-Javadoc)
-	 * @see net.sourceforge.subsonic.service.IJukeboxService#getPlayer()
-	 */
+    /**
+     * Returns the player which currently uses the jukebox.
+     *
+     * @return The player, may be {@code null}.
+     */
     public Player getPlayer() {
         return player;
     }
@@ -179,55 +215,35 @@ public class JukeboxService implements AudioPlayer.Listener, IJukeboxService {
         }
     }
 
-    /* (non-Javadoc)
-	 * @see net.sourceforge.subsonic.service.IJukeboxService#setGain(float)
-	 */
     public synchronized void setGain(float gain) {
         this.gain = gain;
         if (audioPlayer != null) {
-            audioPlayer.setGain(gain);
+           audioPlayer.setGain(gain);
         }
     }
 
-    /* (non-Javadoc)
-	 * @see net.sourceforge.subsonic.service.IJukeboxService#setTranscodingService(net.sourceforge.subsonic.service.TranscodingService)
-	 */
     public void setTranscodingService(TranscodingService transcodingService) {
         this.transcodingService = transcodingService;
     }
 
-    /* (non-Javadoc)
-	 * @see net.sourceforge.subsonic.service.IJukeboxService#setAudioScrobblerService(net.sourceforge.subsonic.service.AudioScrobblerService)
-	 */
     public void setAudioScrobblerService(AudioScrobblerService audioScrobblerService) {
         this.audioScrobblerService = audioScrobblerService;
     }
 
-    /* (non-Javadoc)
-	 * @see net.sourceforge.subsonic.service.IJukeboxService#setStatusService(net.sourceforge.subsonic.service.StatusService)
-	 */
     public void setStatusService(StatusService statusService) {
         this.statusService = statusService;
     }
 
-    /* (non-Javadoc)
-	 * @see net.sourceforge.subsonic.service.IJukeboxService#setSettingsService(net.sourceforge.subsonic.service.SettingsService)
-	 */
     public void setSettingsService(SettingsService settingsService) {
         this.settingsService = settingsService;
     }
 
-    /* (non-Javadoc)
-	 * @see net.sourceforge.subsonic.service.IJukeboxService#setSecurityService(net.sourceforge.subsonic.service.SecurityService)
-	 */
     public void setSecurityService(SecurityService securityService) {
         this.securityService = securityService;
     }
 
-    /* (non-Javadoc)
-	 * @see net.sourceforge.subsonic.service.IJukeboxService#setMediaFileService(net.sourceforge.subsonic.service.MediaFileService)
-	 */
     public void setMediaFileService(MediaFileService mediaFileService) {
         this.mediaFileService = mediaFileService;
     }
+
 }
