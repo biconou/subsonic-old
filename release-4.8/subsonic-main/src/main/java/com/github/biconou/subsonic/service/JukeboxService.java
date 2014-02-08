@@ -92,8 +92,9 @@ public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJuke
      * 
      * @param file
      * @param offset
+     * @throws Exception 
      */
-    private synchronized void play(MediaFile file, int offset) {
+    private synchronized void play(MediaFile file, int offset) throws Exception {
         //InputStream in = null;
         try {
 
@@ -105,7 +106,15 @@ public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJuke
             } else {
                 this.offset = offset;
                 if (audioPlayer != null) {
-                    audioPlayer.stop();
+                	try {
+                		audioPlayer.close();
+                	} catch (Exception e) {
+                		// Nothing to do
+                	} finally {
+                		audioPlayer = null;
+                	}
+                    
+                    
 //                    if (currentPlayingFile != null) {
 //                        onSongEnd(currentPlayingFile);
 //                    }
@@ -117,12 +126,6 @@ public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJuke
                     //String command = settingsService.getJukeboxCommand();
                     //parameters.setTranscoding(new Transcoding(null, null, null, null, command, null, null, false));
                     //in = transcodingService.getTranscodedInputStream(parameters);
-                	
-                	// Temporaire recréation systématique d'un player.
-                	if (audioPlayer != null) {
-                		audioPlayer.close();
-                		audioPlayer = null;
-                	}
                 	
                 	if (audioPlayer == null) {
                 		audioPlayer = new com.github.biconou.AudioPlayer.MPlayerPlayer();
@@ -138,6 +141,7 @@ public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJuke
             }
         } catch (Exception x) {
             LOG.error("Error in jukebox: " + x, x);
+            throw x;
             //IOUtils.closeQuietly(in);
         }
     }
