@@ -18,6 +18,8 @@
  */
 package com.github.biconou.subsonic.service;
 
+import org.slf4j.LoggerFactory;
+
 import net.sourceforge.subsonic.Logger;
 import net.sourceforge.subsonic.domain.MediaFile;
 import net.sourceforge.subsonic.domain.PlayQueue;
@@ -43,7 +45,7 @@ import com.github.biconou.AudioPlayer.PlayerListener;
  */
 public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJukeboxService {
 
-    private static final Logger LOG = Logger.getLogger(JukeboxService.class);
+    private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(JukeboxService.class);
 
     private com.github.biconou.AudioPlayer.Player audioPlayer;
     private TranscodingService transcodingService;
@@ -66,13 +68,20 @@ public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJuke
      * @param offset Start playing after this many seconds into the track.
      */
     public synchronized void updateJukebox(Player player, int offset) throws Exception {
+    	
+    	LOG.debug("Begin updateJukebox");
+    	
+    	// Test if current user is authorized for jukebox.
         User user = securityService.getUserByName(player.getUsername());
         if (!user.isJukeboxRole()) {
-            LOG.warn(user.getUsername() + " is not authorized for jukebox playback.");
+            LOG.warn("{} is not authorized for jukebox playback.",user.getUsername());
             return;
         }
 
+        LOG.debug("player.getPlayQueue().getStatus() : {} ",player.getPlayQueue().getStatus());
+        
         if (player.getPlayQueue().getStatus() == PlayQueue.Status.PLAYING) {
+        	LOG.debug("updateJukebox Playing");
             this.player = player;
             MediaFile result;
             synchronized (player.getPlayQueue()) {
@@ -80,6 +89,7 @@ public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJuke
             }
             play(result, offset);
         } else {
+        	LOG.debug("updateJukebox Pause");
             if (audioPlayer != null) {
             	if (currentPlayingFile != null) {
             		audioPlayer.pause();
@@ -95,17 +105,29 @@ public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJuke
      * @throws Exception 
      */
     private synchronized void play(MediaFile file, int offset) throws Exception {
-        //InputStream in = null;
+        
+    	LOG.debug("Begin play()");
         try {
-
+        	
+        	LOG.debug("audioPlayer state : {}",audioPlayer==null?"-":audioPlayer.getState());
+        	
             // Resume if possible.
             boolean sameFile = file != null && file.equals(currentPlayingFile);
             boolean paused = audioPlayer != null && audioPlayer.getState() == com.github.biconou.AudioPlayer.Player.State.PAUSED;
             if (sameFile && paused && offset == 0) {
+            	LOG.debug("invoque audioPlayer.play()");
                 audioPlayer.play();
-            } else {
-                this.offset = offset;
+            } else { // Start playing new file
+            	LOG.debug("Start playing new file");
+                
+            	// TODO : offset is unused 
+            	this.offset = offset;
+            	
+            	// If an audio player exists it is closed to recreate a new one. 
+            	// This is done to avoid some bugs by reseting 
+            	// TODO  but is it the best way ? 
                 if (audioPlayer != null) {
+                	LOG.debug("Closing the existing audio player.");
                 	try {
                 		audioPlayer.close();
                 	} catch (Exception e) {
@@ -128,17 +150,19 @@ public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJuke
                     //in = transcodingService.getTranscodedInputStream(parameters);
                 	
                 	if (audioPlayer == null) {
-                		audioPlayer = new com.github.biconou.AudioPlayer.MPlayerPlayer();
+                		LOG.debug("Creating a new audio player.");
+                		audioPlayer = new com.github.biconou.AudioPlayer.MPlayerPlayer(new Float(gain));
                     	audioPlayer.registerListener(this);
                 	}
+                	LOG.debug("Setting play list to the new audio player.");
                 	audioPlayer.setPlayList(this.player.getPlayQueue());
-                	audioPlayer.setGain(gain);
                 	audioPlayer.play();
 
                     onSongStart(file);
                     currentPlayingFile = file;
+                    LOG.debug("The current playing file is now {}",currentPlayingFile.getName());
                 }
-            }
+            } // END Start playing new file
         } catch (Exception x) {
             LOG.error("Error in jukebox: " + x, x);
             throw x;
@@ -157,7 +181,12 @@ public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJuke
 //        }
     }
     
+    /**
+     * This method is invoked as a reflex when the audio player has changed audio stream.
+     */
     public void nextStreamNotified() {
+    	LOG.debug("Begin nextStreamNotified()");
+    	
     	onSongEnd(currentPlayingFile);
     	currentPlayingFile = null;
     	player.getPlayQueue().next();
@@ -165,12 +194,19 @@ public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJuke
     	synchronized (player.getPlayQueue()) {
     		result = player.getPlayQueue().getCurrentFile();
     	}
+    	
     	if (result != null) {
+    		LOG.debug("The next song is {}",result.getName());
 	    	onSongStart(result);
 	        currentPlayingFile = result;
+    	} else {
+    		LOG.debug("No next song in queue");
     	}
     }
     
+    /**
+     * 
+     */
 	public void endNotified() {
 		onSongEnd(currentPlayingFile);
 		currentPlayingFile = null;
@@ -196,8 +232,14 @@ public class JukeboxService implements AudioPlayer.Listener,PlayerListener,IJuke
         return player;
     }
 
+    /**
+     * 
+     * @param file
+     */
     private void onSongStart(MediaFile file) {
-        LOG.info(player.getUsername() + " starting jukebox for \"" + FileUtil.getShortPath(file.getFile()) + "\"");
+    	LOG.debug("begin onSongStart");
+    	
+        LOG.debug("{} starting jukebox for \"{}\"",player.getUsername(),FileUtil.getShortPath(file.getFile()));
         status = statusService.createStreamStatus(player);
         status.setFile(file.getFile());
         status.addBytesTransfered(file.getFileSize());
