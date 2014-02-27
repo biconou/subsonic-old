@@ -31,7 +31,7 @@
 	</logger>
 
 
-	<logger name="com.github.biconou.subsonic.service.JukeboxService">
+	<logger name="com.github.biconou.subsonic.service">
 	   <level value="debug"/>
 	   <appender-ref ref="jukeboxLogFile"/>
 	</logger>
@@ -40,10 +40,15 @@
 	   <level value="trace"/>
 	   <appender-ref ref="jukeboxLogFile"/>
 	</logger>
+
+	<logger name="com.github.biconou.cmus">
+	   <level value="trace"/>
+	   <appender-ref ref="jukeboxLogFile"/>
+	</logger>
   
   
   <root> 
-    <level value="info" /> 
+    <level value="warn" /> 
     <appender-ref ref="console" /> 
   </root>
 
